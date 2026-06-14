@@ -1,0 +1,64 @@
+# This compose.yaml was generated for the premsagar786/anonymous_bot repository.
+# It sets up a Telegram bot service and a PostgreSQL database.
+
+services:
+  bot:
+    build:
+      context: ./anonymous_chat_bot
+      # NOTE: If switching from SQLite to PostgreSQL, ensure 'asyncpg' is added to requirements.txt
+      # for SQLAlchemy to connect to PostgreSQL asynchronously.
+      # Example: asyncpg==0.29.0
+    command: python bot.py
+    environment:
+      # Telegram Bot Token - MUST be set via `defang config set BOT_TOKEN=your_token_here`
+      - BOT_TOKEN
+      # Admin IDs - Comma-separated list of Telegram user IDs.
+      # Example: ADMIN_IDS=12345,67890
+      - ADMIN_IDS
+      # Database URL for PostgreSQL.
+      # The 'db' service is the hostname for the PostgreSQL database.
+      - DATABASE_URL=postgresql+asyncpg://postgres:${POSTGRES_PASSWORD}@db:5432/anonymous_chat_db
+      # Log level for the bot (e.g., INFO, DEBUG, WARNING, ERROR)
+      - LOG_LEVEL=INFO
+      # Other optional environment variables from config.py can be set here if needed:
+      # - MAX_REPORTS_BEFORE_BAN=3
+      # - BAN_DURATION_HOURS=24
+      # - RATE_LIMIT_MESSAGES=20
+      # - RATE_LIMIT_WINDOW=60
+      # - SPAM_THRESHOLD=5
+    depends_on:
+      db:
+        condition: service_healthy
+    # Bots typically don't expose public ports.
+    # If this bot had a webhook or API, ports would be configured here with mode: ingress.
+    deploy:
+      resources:
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+
+  db:
+    image: postgres:16
+    # Enables Defang's managed PostgreSQL extension.
+    # This will provision a managed PostgreSQL instance instead of running a container.
+    x-defang-postgres: true
+    ports:
+      # Database ports should use 'mode: host' for internal service-to-service communication.
+      - mode: host
+        target: 5432
+        published: 5432
+    environment:
+      - POSTGRES_DB=anonymous_chat_db
+      - POSTGRES_USER=postgres
+      # PostgreSQL password - MUST be set via `defang config set POSTGRES_PASSWORD=your_password_here`
+      - POSTGRES_PASSWORD
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        reservations:
+          cpus: "0.5"
+          memory: 512M
